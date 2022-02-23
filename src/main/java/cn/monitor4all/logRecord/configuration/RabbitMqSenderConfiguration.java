@@ -14,6 +14,7 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.util.StringUtils;
 
 import javax.annotation.PostConstruct;
 
@@ -26,6 +27,7 @@ import javax.annotation.PostConstruct;
 @EnableConfigurationProperties({LogRecordProperties.class})
 public class RabbitMqSenderConfiguration {
 
+    private String rabbitAddresses;
     private String rabbitHost;
     private int rabbitPort;
     private String exchange;
@@ -39,6 +41,7 @@ public class RabbitMqSenderConfiguration {
 
     @PostConstruct
     public void rabbitMqConfig() {
+        this.rabbitAddresses = properties.getRabbitMqProperties().getAddresses();
         this.rabbitHost = properties.getRabbitMqProperties().getHost();
         this.rabbitPort = properties.getRabbitMqProperties().getPort();
         this.queue = properties.getRabbitMqProperties().getQueueName();
@@ -46,13 +49,19 @@ public class RabbitMqSenderConfiguration {
         this.exchange= properties.getRabbitMqProperties().getExchangeName();
         this.username= properties.getRabbitMqProperties().getUsername();
         this.password= properties.getRabbitMqProperties().getPassword();
-        log.info("LogRecord RabbitMqSenderConfiguration host [{}] port [{}] exchange [{}] queue [{}] routingKey [{}]",
-                rabbitHost, rabbitPort, exchange, queue, routingKey);
+        log.info("LogRecord RabbitMqSenderConfiguration addresses [{}] host [{}] port [{}] exchange [{}] queue [{}] routingKey [{}]",
+                rabbitAddresses, rabbitHost, rabbitPort, exchange, queue, routingKey);
     }
 
     @Bean
     ConnectionFactory rabbitConnectionFactory() {
-        CachingConnectionFactory cachingConnectionFactory = new CachingConnectionFactory(rabbitHost, rabbitPort);
+        CachingConnectionFactory cachingConnectionFactory = new CachingConnectionFactory();
+        if (StringUtils.hasLength(rabbitAddresses)) {
+            cachingConnectionFactory.setAddresses(rabbitAddresses);
+        }else {
+            cachingConnectionFactory.setHost(rabbitHost);
+            cachingConnectionFactory.setPort(rabbitPort);
+        }
         cachingConnectionFactory.setUsername(username);
         cachingConnectionFactory.setPassword(password);
         return cachingConnectionFactory;

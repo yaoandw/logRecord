@@ -26,13 +26,14 @@ public class LogRecordProperties {
 
     @Data
     public static class RabbitMqProperties {
+        private String addresses;
         private String host;
         private int port;
         private String username;
         private String password;
-        private String queueName;
-        private String exchangeName;
-        private String routingKey;
+        private String queueName = "logRecord";
+        private String exchangeName = "logRecord";
+        private String routingKey = "logRecord";
     }
 
     @Data
