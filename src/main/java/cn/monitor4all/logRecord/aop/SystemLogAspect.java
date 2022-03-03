@@ -47,14 +47,18 @@ public class SystemLogAspect {
 
     @Around("@annotation(cn.monitor4all.logRecord.annotation.OperationLog) || @annotation(cn.monitor4all.logRecord.annotation.OperationLogs)")
     public Object doAround(ProceedingJoinPoint pjp) throws Throwable{
+        log.debug(pjp.getKind());
+        Signature signature =  pjp.getSignature();
+        Class returnType = ((MethodSignature) signature).getReturnType();
+        log.debug(returnType.getName());
         Object result;
         List<LogDTO> logS = new ArrayList<>();
         StopWatch stopWatch = new StopWatch();
         try {
-            logS = resolveExpress(pjp);
             stopWatch.start();
             result = pjp.proceed();
             stopWatch.stop();
+            logS = resolveExpress(pjp);
             logS.forEach(logDTO -> {
                 logDTO.setSuccess(true);
                 logDTO.setReturnStr(JSON.toJSONString(result));
