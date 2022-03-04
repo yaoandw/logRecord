@@ -52,55 +52,23 @@ public class LogRecordFuncTest {
         System.out.println(operationLogService.test());
     }
 
-    private ServerHttpRequest request = new ServerHttpRequest() {
-        @Override
-        public String getId() {
-            return UUID.randomUUID().toString();
-        }
-
-        @Override
-        public RequestPath getPath() {
-            return null;
-        }
-
-        @Override
-        public MultiValueMap<String, String> getQueryParams() {
-            return null;
-        }
-
-        @Override
-        public MultiValueMap<String, HttpCookie> getCookies() {
-            return null;
-        }
-
-        @Override
-        public String getMethodValue() {
-            return null;
-        }
-
-        @Override
-        public URI getURI() {
-            return null;
-        }
-
-        @Override
-        public Flux<DataBuffer> getBody() {
-            return null;
-        }
-
-        @Override
-        public HttpHeaders getHeaders() {
-            return null;
-        }
-    };
-
     @Test
-    public void testSubscriberContext(){
+    public void testMonoFunction(){
         Mono<String> r = operationLogService.testReactive()
-                .subscriberContext(Context.of("key", "context_data "+ System.currentTimeMillis()));
+                .subscriberContext(Context.of("key", "st"));
 
         StepVerifier.create(r)
-                .expectNext("123--value")
+                .expectNext("123--")
+                .verifyComplete();
+    }
+
+    @Test
+    public void testFluxFunction(){
+        Flux<String> r = operationLogService.testReactiveFlux()
+                .subscriberContext(Context.of("key", "st"));
+
+        StepVerifier.create(r)
+                .expectNext("123--")
                 .verifyComplete();
     }
 
@@ -123,6 +91,10 @@ public class LogRecordFuncTest {
         @LogRecordFunc("test")
         public static String testMethod(){
             return "test";
+        }
+        @LogRecordFunc("test1")
+        public static String testMethod1(){
+            return "te";
         }
     }
 }

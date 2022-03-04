@@ -76,29 +76,29 @@ public class SystemLogAspectReactive{
 //            }).doOnError(throwable -> {
 //                doOnError(throwable, pjp,stopWatch);
 //            });
-//            return ((Mono)pjp.proceed()).flatMap(o -> {
-//                return Mono.subscriberContext().map(context -> {
+            return ((Mono)pjp.proceed()).flatMap(o -> {
+                return doFlatMap(o, pjp, stopWatch);
+            }).doOnError(throwable -> {
+                doOnError(throwable, pjp,stopWatch);
+            });
+//            return ((Mono)pjp.proceed()).doOnNext(o -> {
+//                Mono.subscriberContext().map(context -> {
 //                    log.info("log in subscriberContext");
 //                    String value = context.getOrDefault("key", "no_data");
 //                    log.info(value);
 //                    return value;
-//                }).then(Mono.just(o));
+//                });
 //            }).doOnError(throwable -> {
 //                doOnError(throwable, pjp,stopWatch);
 //            });
-            return ((Mono)pjp.proceed()).doOnNext(o -> {
-                Mono.subscriberContext().map(context -> {
-                    log.info("log in subscriberContext");
-                    String value = context.getOrDefault("key", "no_data");
-                    log.info(value);
-                    return value;
-                });
-            }).doOnError(throwable -> {
-                doOnError(throwable, pjp,stopWatch);
-            });
         }else if (isFlux(pjp)) {
-            return ((Flux)pjp.proceed()).doOnNext(o -> {
-                doOnNext(o, pjp, stopWatch);
+//            return ((Flux)pjp.proceed()).doOnNext(o -> {
+//                doOnNext(o, pjp, stopWatch);
+//            }).doOnError(throwable -> {
+//                doOnError(throwable, pjp, stopWatch);
+//            });
+            return ((Flux)pjp.proceed()).flatMap(o -> {
+                return doFlatMap(o, pjp, stopWatch);
             }).doOnError(throwable -> {
                 doOnError(throwable, pjp, stopWatch);
             });
@@ -108,54 +108,46 @@ public class SystemLogAspectReactive{
         return pjp.proceed();
     }
 
-//    private Mono<Object> doFlatMap(Object methodReturn,ProceedingJoinPoint pjp,StopWatch stopWatch) {
-//        stopWatch.stop();
-//        return LogRecordContextReactive.getContext().flatMap(ctx -> {
-////            log.error("get value from key:"+ctx.get("key"));
-////            return Mono.just(methodReturn);
-//            return resolveExpress(pjp).map(logDTO -> {
-//                logDTO.setSuccess(true);
-//                logDTO.setReturnStr(JSON.toJSONString(methodReturn));
-//                doFinnally(logDTO, stopWatch);
-//                return logDTO;
-//            }).collectList().then(Mono.just(methodReturn));
-//        });
-////        return Mono.subscriberContext().flatMap(ctx->{
-////            log.error("get value from key:"+ctx.get("key"));
-//////            return Mono.just(methodReturn);
-////            return resolveExpress(pjp).map(logDTO -> {
-////                logDTO.setSuccess(true);
-////                logDTO.setReturnStr(JSON.toJSONString(methodReturn));
-////                doFinnally(logDTO, stopWatch);
-////                return logDTO;
-////            }).collectList().then(Mono.just(methodReturn));
-////        });
-//    }
-    private void doOnNext(Object methodReturn,ProceedingJoinPoint pjp,StopWatch stopWatch) {
+    private Mono<Object> doFlatMap(Object methodReturn,ProceedingJoinPoint pjp,StopWatch stopWatch) {
         stopWatch.stop();
-        List<LogDTO> logS = resolveExpress(pjp);
-        logS.forEach(logDTO -> {
+        return resolveExpressReactive(pjp).map(logDTO -> {
             logDTO.setSuccess(true);
             logDTO.setReturnStr(JSON.toJSONString(methodReturn));
             doFinnally(logDTO, stopWatch);
-        });
-        Mono.subscriberContext().map(context -> {
-            log.info("log in subscriberContext");
-            String value = context.getOrDefault("key", "no_data");
-            log.info(value);
-            return value;
+            return logDTO;
+        }).then(Mono.just(methodReturn));
+    }
+    private void doOnNext(Object methodReturn,ProceedingJoinPoint pjp,StopWatch stopWatch) {
+        stopWatch.stop();
+//        List<LogDTO> logS = resolveExpress(pjp);
+//        logS.forEach(logDTO -> {
+//            logDTO.setSuccess(true);
+//            logDTO.setReturnStr(JSON.toJSONString(methodReturn));
+//            doFinnally(logDTO, stopWatch);
+//        });
+        resolveExpressReactive(pjp).map(logDTO -> {
+            logDTO.setSuccess(true);
+            logDTO.setReturnStr(JSON.toJSONString(methodReturn));
+            doFinnally(logDTO, stopWatch);
+            return logDTO;
         }).subscribe();
     }
 
     private void doOnError(Object e,ProceedingJoinPoint pjp,StopWatch stopWatch) {
         if (stopWatch.isRunning())
             stopWatch.stop();
-        List<LogDTO> logS = resolveExpress(pjp);
-        logS.forEach(logDTO -> {
+//        List<LogDTO> logS = resolveExpress(pjp);
+//        logS.forEach(logDTO -> {
+//            logDTO.setSuccess(false);
+//            logDTO.setException(((Throwable)e).getMessage());
+//            doFinnally(logDTO, stopWatch);
+//        });
+        resolveExpressReactive(pjp).map(logDTO -> {
             logDTO.setSuccess(false);
             logDTO.setException(((Throwable)e).getMessage());
             doFinnally(logDTO, stopWatch);
-        });
+            return logDTO;
+        }).subscribe();
     }
 
     private void doFinnally(LogDTO logDTO,StopWatch stopWatch) {
@@ -246,6 +238,60 @@ public class SystemLogAspectReactive{
             log.error("SystemLogAspect resolveExpress error", e);
             return new ArrayList<>();
         }
+    }
+
+    public Flux<LogDTO> resolveExpressReactive(JoinPoint joinPoint) {
+        return LogRecordContextReactive.getSpelContext().flatMapMany(context->{
+            List<LogDTO> logDTOList = new ArrayList<>();
+            Object[] arguments = joinPoint.getArgs();
+            Method method = getMethod(joinPoint);
+            OperationLogReactive[] annotations = method.getAnnotationsByType(OperationLogReactive.class);
+            return Flux.fromArray(annotations).flatMap(annotation->{
+
+                LogDTO logDTO = new LogDTO();
+                logDTOList.add(logDTO);
+                String bizIdSpel = annotation.bizId();
+                String msgSpel = annotation.msg();
+                String bizId = bizIdSpel;
+                String msg = msgSpel;
+                try {
+                    String[] params = discoverer.getParameterNames(method);
+                    CustomFunctionRegistrar.register(context);
+                    if (params != null) {
+                        for (int len = 0; len < params.length; len++) {
+                            context.setVariable(params[len], arguments[len]);
+                        }
+                    }
+
+                    // bizId 处理：直接传入字符串会抛出异常，写入默认传入的字符串
+                    if (StringUtils.isNotBlank(bizIdSpel)) {
+                        Expression bizIdExpression = parser.parseExpression(bizIdSpel);
+                        bizId = bizIdExpression.getValue(context, String.class);
+                    }
+
+                    // msg 处理：写入默认传入的字符串
+                    if (StringUtils.isNotBlank(msgSpel)) {
+                        Expression msgExpression = parser.parseExpression(msgSpel);
+                        Object msgObj = msgExpression.getValue(context, Object.class);
+                        msg = msgObj instanceof String ? String.valueOf(msgObj) : JSON.toJSONString(msgObj, SerializerFeature.WriteMapNullValue);
+                    }
+
+                } catch (Exception e) {
+                    log.error("SystemLogAspect resolveExpress error", e);
+                } finally {
+                    logDTO.setLogId(UUID.randomUUID().toString());
+                    logDTO.setBizId(bizId);
+                    logDTO.setBizType(annotation.bizType());
+                    logDTO.setOperateDate(new Date());
+                    logDTO.setMsg(msg);
+                    logDTO.setTag(annotation.tag());
+                }
+                return Mono.just(logDTO);
+            });
+        }).onErrorResume(e->{
+            log.error("SystemLogAspect resolveExpress error", e);
+            return Flux.empty();
+        });
     }
 
     protected Method getMethod(JoinPoint joinPoint) {

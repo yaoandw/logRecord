@@ -3,41 +3,28 @@ package cn.monitor4all.logRecord.context;
 import lombok.Data;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
-import org.springframework.http.server.reactive.ServerHttpRequest;
 import reactor.core.publisher.Mono;
 
-import java.util.HashMap;
-import java.util.Map;
+import java.util.List;
+import java.util.stream.Collectors;
 
 @Slf4j
 @Data
 public class LogRecordContextReactive {
 
     private String msg;
+    private String userId;
+    private String username;
+    private String nickname;
 
-    private static final Map<String, StandardEvaluationContext> requestIdContextMap = new HashMap<>();
-
-    public static StandardEvaluationContext getContext(String requestId) {
-        StandardEvaluationContext context = requestIdContextMap.get(requestId);
-        if (context == null) {
-            context = new StandardEvaluationContext();
-            requestIdContextMap.put(requestId, context);
-        }
-        return context;
+    public static Mono<StandardEvaluationContext> getSpelContext() {
+        return Mono.subscriberContext().map(context -> {
+            StandardEvaluationContext spelContext = new StandardEvaluationContext();
+            context.stream().forEach(objectObjectEntry -> {
+                spelContext.setVariable(objectObjectEntry.getKey().toString(),objectObjectEntry.getValue());
+            });
+            return spelContext;
+        });
     }
 
-    public static void putVariables(String requestId, String key, Object value) {
-        getContext(requestId).setVariable(key, value);
-    }
-
-    public static void clearContext(String requestId) {
-        requestIdContextMap.remove(requestId);
-    }
-
-    public static final Class<ServerHttpRequest> CONTEXT_KEY = ServerHttpRequest.class;
-
-    public static Mono<ServerHttpRequest> getRequest() {
-        return Mono.subscriberContext()
-                .map(ctx -> ctx.get(CONTEXT_KEY));
-    }
 }
