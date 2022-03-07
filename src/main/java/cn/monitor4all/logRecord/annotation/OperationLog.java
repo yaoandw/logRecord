@@ -22,6 +22,6 @@ public @interface OperationLog {
 
     String msg() default "";
 
-    String tag() default "operation";
+    String tag() default "";
 
 }

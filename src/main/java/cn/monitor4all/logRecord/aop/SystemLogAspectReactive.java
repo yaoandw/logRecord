@@ -39,7 +39,7 @@ import java.util.UUID;
 @Aspect
 @Component
 @Slf4j
-public class SystemLogAspectReactive{
+public class SystemLogAspectReactive {
 
     @Autowired(required = false)
     private LogService logService;
@@ -56,15 +56,15 @@ public class SystemLogAspectReactive{
 
     @Pointcut("@annotation(cn.monitor4all.logRecord.annotation.OperationLogReactive)")
     /*
-    * execution(<修饰符模式>?<返回类型模式><方法名模式>(<参数模式>)<异常模式>?)
-    * */
+     * execution(<修饰符模式>?<返回类型模式><方法名模式>(<参数模式>)<异常模式>?)
+     * */
 //    @Pointcut("execution(* com.yitian.survey.service.impl..*.*(..))")
-    public void pointcutAnnotation(){
+    public void pointcutAnnotation() {
 
     }
 
     @Around("pointcutAnnotation()")
-    public Object doAround(ProceedingJoinPoint pjp) throws Throwable{
+    public Object doAround(ProceedingJoinPoint pjp) throws Throwable {
         if (!isReactive(pjp)) {
             return systemLogAspect.doAround(pjp);
         }
@@ -76,48 +76,45 @@ public class SystemLogAspectReactive{
 //            }).doOnError(throwable -> {
 //                doOnError(throwable, pjp,stopWatch);
 //            });
-            return ((Mono)pjp.proceed()).flatMap(o -> {
+            return ((Mono) pjp.proceed()).flatMap(o -> {
                 return doFlatMap(o, pjp, stopWatch);
-            }).doOnError(throwable -> {
-                doOnError(throwable, pjp,stopWatch);
-            });
-//            return ((Mono)pjp.proceed()).doOnNext(o -> {
-//                Mono.subscriberContext().map(context -> {
-//                    log.info("log in subscriberContext");
-//                    String value = context.getOrDefault("key", "no_data");
-//                    log.info(value);
-//                    return value;
-//                });
-//            }).doOnError(throwable -> {
-//                doOnError(throwable, pjp,stopWatch);
-//            });
-        }else if (isFlux(pjp)) {
+            }).switchIfEmpty(Mono.defer(() -> doFlatMap(null, pjp, stopWatch)))
+                    .doOnError(throwable -> {
+                        doOnError(throwable, pjp, stopWatch);
+                    });
+        } else if (isFlux(pjp)) {
 //            return ((Flux)pjp.proceed()).doOnNext(o -> {
 //                doOnNext(o, pjp, stopWatch);
 //            }).doOnError(throwable -> {
 //                doOnError(throwable, pjp, stopWatch);
 //            });
-            return ((Flux)pjp.proceed()).flatMap(o -> {
+            return ((Flux) pjp.proceed()).flatMap(o -> {
                 return doFlatMap(o, pjp, stopWatch);
-            }).doOnError(throwable -> {
-                doOnError(throwable, pjp, stopWatch);
-            });
+            }).switchIfEmpty(Mono.defer(() -> doFlatMap(null, pjp, stopWatch)))
+                    .doOnError(throwable -> {
+                        doOnError(throwable, pjp, stopWatch);
+                    });
+//            return ((Flux)pjp.proceed()).thenMany(doFlatMap(null, pjp, stopWatch))
+//                    .doOnError(throwable -> {
+//                doOnError(throwable, pjp, stopWatch);
+//            });
         }
 
 
         return pjp.proceed();
     }
 
-    private Mono<Object> doFlatMap(Object methodReturn,ProceedingJoinPoint pjp,StopWatch stopWatch) {
+    private Mono<Object> doFlatMap(Object methodReturn, ProceedingJoinPoint pjp, StopWatch stopWatch) {
         stopWatch.stop();
         return resolveExpressReactive(pjp).map(logDTO -> {
             logDTO.setSuccess(true);
             logDTO.setReturnStr(JSON.toJSONString(methodReturn));
             doFinnally(logDTO, stopWatch);
             return logDTO;
-        }).then(Mono.just(methodReturn));
+        }).then(methodReturn != null ? Mono.just(methodReturn) : Mono.empty());
     }
-    private void doOnNext(Object methodReturn,ProceedingJoinPoint pjp,StopWatch stopWatch) {
+
+    private void doOnNext(Object methodReturn, ProceedingJoinPoint pjp, StopWatch stopWatch) {
         stopWatch.stop();
 //        List<LogDTO> logS = resolveExpress(pjp);
 //        logS.forEach(logDTO -> {
@@ -133,7 +130,7 @@ public class SystemLogAspectReactive{
         }).subscribe();
     }
 
-    private void doOnError(Object e,ProceedingJoinPoint pjp,StopWatch stopWatch) {
+    private void doOnError(Object e, ProceedingJoinPoint pjp, StopWatch stopWatch) {
         if (stopWatch.isRunning())
             stopWatch.stop();
 //        List<LogDTO> logS = resolveExpress(pjp);
@@ -144,13 +141,13 @@ public class SystemLogAspectReactive{
 //        });
         resolveExpressReactive(pjp).map(logDTO -> {
             logDTO.setSuccess(false);
-            logDTO.setException(((Throwable)e).getMessage());
+            logDTO.setException(((Throwable) e).getMessage());
             doFinnally(logDTO, stopWatch);
             return logDTO;
         }).subscribe();
     }
 
-    private void doFinnally(LogDTO logDTO,StopWatch stopWatch) {
+    private void doFinnally(LogDTO logDTO, StopWatch stopWatch) {
         try {
             // 记录执行时间
             logDTO.setExecutionTime(stopWatch.getTotalTimeMillis());
@@ -168,19 +165,19 @@ public class SystemLogAspectReactive{
     }
 
     private boolean isReactive(ProceedingJoinPoint pjp) {
-        Signature signature =  pjp.getSignature();
+        Signature signature = pjp.getSignature();
         Class returnType = ((MethodSignature) signature).getReturnType();
         return "reactor.core.publisher.Mono".equals(returnType.getName()) || "reactor.core.publisher.Flux".equals(returnType.getName());
     }
 
     private boolean isFlux(ProceedingJoinPoint pjp) {
-        Signature signature =  pjp.getSignature();
+        Signature signature = pjp.getSignature();
         Class returnType = ((MethodSignature) signature).getReturnType();
         return "reactor.core.publisher.Flux".equals(returnType.getName());
     }
 
     private boolean isMono(ProceedingJoinPoint pjp) {
-        Signature signature =  pjp.getSignature();
+        Signature signature = pjp.getSignature();
         Class returnType = ((MethodSignature) signature).getReturnType();
         return "reactor.core.publisher.Mono".equals(returnType.getName());
     }
@@ -196,8 +193,12 @@ public class SystemLogAspectReactive{
                 logDTOList.add(logDTO);
                 String bizIdSpel = annotation.bizId();
                 String msgSpel = annotation.msg();
+                String tagSpel = annotation.tag();
+                String bizTypeSpel = annotation.bizType();
                 String bizId = bizIdSpel;
                 String msg = msgSpel;
+                String tag = tagSpel;
+                String bizType = bizTypeSpel;
                 try {
                     String[] params = discoverer.getParameterNames(method);
                     StandardEvaluationContext context = new StandardEvaluationContext();
@@ -209,27 +210,23 @@ public class SystemLogAspectReactive{
                     }
 
                     // bizId 处理：直接传入字符串会抛出异常，写入默认传入的字符串
-                    if (StringUtils.isNotBlank(bizIdSpel)) {
-                        Expression bizIdExpression = parser.parseExpression(bizIdSpel);
-                        bizId = bizIdExpression.getValue(context, String.class);
-                    }
+                    bizId = systemLogAspect.parseSpel(bizIdSpel, context);
 
                     // msg 处理：写入默认传入的字符串
-                    if (StringUtils.isNotBlank(msgSpel)) {
-                        Expression msgExpression = parser.parseExpression(msgSpel);
-                        Object msgObj = msgExpression.getValue(context, Object.class);
-                        msg = msgObj instanceof String ? String.valueOf(msgObj) : JSON.toJSONString(msgObj, SerializerFeature.WriteMapNullValue);
-                    }
+                    msg = systemLogAspect.parseSpel(msgSpel, context);
+
+                    tag = systemLogAspect.parseSpel(tagSpel, context);
+                    bizType = systemLogAspect.parseSpel(bizTypeSpel, context);
 
                 } catch (Exception e) {
                     log.error("SystemLogAspect resolveExpress error", e);
                 } finally {
                     logDTO.setLogId(UUID.randomUUID().toString());
                     logDTO.setBizId(bizId);
-                    logDTO.setBizType(annotation.bizType());
+                    logDTO.setBizType(bizType);
                     logDTO.setOperateDate(new Date());
                     logDTO.setMsg(msg);
-                    logDTO.setTag(annotation.tag());
+                    logDTO.setTag(tag);
                 }
             }
             return logDTOList;
@@ -241,19 +238,23 @@ public class SystemLogAspectReactive{
     }
 
     public Flux<LogDTO> resolveExpressReactive(JoinPoint joinPoint) {
-        return LogRecordContextReactive.getSpelContext().flatMapMany(context->{
+        return LogRecordContextReactive.getSpelContext().flatMapMany(context -> {
             List<LogDTO> logDTOList = new ArrayList<>();
             Object[] arguments = joinPoint.getArgs();
             Method method = getMethod(joinPoint);
             OperationLogReactive[] annotations = method.getAnnotationsByType(OperationLogReactive.class);
-            return Flux.fromArray(annotations).flatMap(annotation->{
+            return Flux.fromArray(annotations).flatMap(annotation -> {
 
                 LogDTO logDTO = new LogDTO();
                 logDTOList.add(logDTO);
                 String bizIdSpel = annotation.bizId();
                 String msgSpel = annotation.msg();
+                String tagSpel = annotation.tag();
+                String bizTypeSpel = annotation.bizType();
                 String bizId = bizIdSpel;
                 String msg = msgSpel;
+                String tag = tagSpel;
+                String bizType = bizTypeSpel;
                 try {
                     String[] params = discoverer.getParameterNames(method);
                     CustomFunctionRegistrar.register(context);
@@ -264,31 +265,27 @@ public class SystemLogAspectReactive{
                     }
 
                     // bizId 处理：直接传入字符串会抛出异常，写入默认传入的字符串
-                    if (StringUtils.isNotBlank(bizIdSpel)) {
-                        Expression bizIdExpression = parser.parseExpression(bizIdSpel);
-                        bizId = bizIdExpression.getValue(context, String.class);
-                    }
+                    bizId = systemLogAspect.parseSpel(bizIdSpel, context);
 
                     // msg 处理：写入默认传入的字符串
-                    if (StringUtils.isNotBlank(msgSpel)) {
-                        Expression msgExpression = parser.parseExpression(msgSpel);
-                        Object msgObj = msgExpression.getValue(context, Object.class);
-                        msg = msgObj instanceof String ? String.valueOf(msgObj) : JSON.toJSONString(msgObj, SerializerFeature.WriteMapNullValue);
-                    }
+                    msg = systemLogAspect.parseSpel(msgSpel, context);
+
+                    tag = systemLogAspect.parseSpel(tagSpel, context);
+                    bizType = systemLogAspect.parseSpel(bizTypeSpel, context);
 
                 } catch (Exception e) {
                     log.error("SystemLogAspect resolveExpress error", e);
                 } finally {
                     logDTO.setLogId(UUID.randomUUID().toString());
                     logDTO.setBizId(bizId);
-                    logDTO.setBizType(annotation.bizType());
+                    logDTO.setBizType(bizType);
                     logDTO.setOperateDate(new Date());
                     logDTO.setMsg(msg);
-                    logDTO.setTag(annotation.tag());
+                    logDTO.setTag(tag);
                 }
                 return Mono.just(logDTO);
             });
-        }).onErrorResume(e->{
+        }).onErrorResume(e -> {
             log.error("SystemLogAspect resolveExpress error", e);
             return Flux.empty();
         });

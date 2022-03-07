@@ -26,9 +26,19 @@ public class OperationLogService {
     public Mono<String> testReactive() {
         return Mono.just("123--");
     }
-    @OperationLogReactive(bizId = "#test_test1() + #key", bizType = "1234")
+    @OperationLogReactive(bizId = "#test_test1() + #key2", bizType = "1234")
     public Flux<String> testReactiveFlux() {
-        return Flux.just("123--");
+        return Flux.just("123--").flatMap(s -> {
+            return Mono.just(s).subscriberContext(ctx->ctx.put("key2","st"));
+        }).subscriberContext(Context.of("key1","value1"));
+//        return Flux.error(new Exception("cuowu"));
+    }
+
+    @OperationLogReactive(bizId = "#test_test1() + #key2", bizType = "1234")
+    public Flux<Void> testReactiveFluxVoid() {
+        return Flux.just("123--").flatMap(s -> {
+            return Mono.just(s).subscriberContext(ctx->ctx.put("key2","st"));
+        }).subscriberContext(Context.of("key1","value1")).thenMany(Flux.empty());
 //        return Flux.error(new Exception("cuowu"));
     }
 }

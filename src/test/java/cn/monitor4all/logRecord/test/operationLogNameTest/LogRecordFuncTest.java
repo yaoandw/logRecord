@@ -72,6 +72,15 @@ public class LogRecordFuncTest {
                 .verifyComplete();
     }
 
+    @Test
+    public void testFluxFunctionVoid(){
+        Flux<Void> r = operationLogService.testReactiveFluxVoid()
+                .subscriberContext(Context.of("key", "st"));
+
+        StepVerifier.create(r)
+                .verifyComplete();
+    }
+
     @TestComponent
     @Slf4j
     @Scope

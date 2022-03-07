@@ -12,5 +12,5 @@ public @interface OperationLogReactive {
 
     String msg() default "";
 
-    String tag() default "operation";
+    String tag() default "";
 }

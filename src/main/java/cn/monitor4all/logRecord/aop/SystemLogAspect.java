@@ -107,8 +107,12 @@ public class SystemLogAspect {
                 logDTOList.add(logDTO);
                 String bizIdSpel = annotation.bizId();
                 String msgSpel = annotation.msg();
+                String tagSpel = annotation.tag();
+                String bizTypeSpel = annotation.bizType();
                 String bizId = bizIdSpel;
                 String msg = msgSpel;
+                String tag = tagSpel;
+                String bizType = bizTypeSpel;
                 try {
                     String[] params = discoverer.getParameterNames(method);
                     StandardEvaluationContext context = LogRecordContext.getContext();
@@ -120,27 +124,23 @@ public class SystemLogAspect {
                     }
 
                     // bizId 处理：直接传入字符串会抛出异常，写入默认传入的字符串
-                    if (StringUtils.isNotBlank(bizIdSpel)) {
-                        Expression bizIdExpression = parser.parseExpression(bizIdSpel);
-                        bizId = bizIdExpression.getValue(context, String.class);
-                    }
+                    bizId = parseSpel(bizIdSpel, context);
 
                     // msg 处理：写入默认传入的字符串
-                    if (StringUtils.isNotBlank(msgSpel)) {
-                        Expression msgExpression = parser.parseExpression(msgSpel);
-                        Object msgObj = msgExpression.getValue(context, Object.class);
-                        msg = msgObj instanceof String ? String.valueOf(msgObj) : JSON.toJSONString(msgObj, SerializerFeature.WriteMapNullValue);
-                    }
+                    msg = parseSpel(msgSpel, context);
+
+                    tag = parseSpel(tagSpel, context);
+                    bizType = parseSpel(bizTypeSpel, context);
 
                 } catch (Exception e) {
                     log.error("SystemLogAspect resolveExpress error", e);
                 } finally {
                     logDTO.setLogId(UUID.randomUUID().toString());
                     logDTO.setBizId(bizId);
-                    logDTO.setBizType(annotation.bizType());
+                    logDTO.setBizType(bizType);
                     logDTO.setOperateDate(new Date());
                     logDTO.setMsg(msg);
-                    logDTO.setTag(annotation.tag());
+                    logDTO.setTag(tag);
                 }
             }
             return logDTOList;
@@ -162,5 +162,16 @@ public class SystemLogAspect {
             log.error("SystemLogAspect getMethod error", e);
         }
         return method;
+    }
+
+
+    protected String parseSpel(String msgSpel, StandardEvaluationContext context) {
+        String msg = msgSpel;
+        if (StringUtils.isNotBlank(msgSpel)) {
+            Expression msgExpression = parser.parseExpression(msgSpel);
+            Object msgObj = msgExpression.getValue(context, Object.class);
+            msg = msgObj instanceof String ? String.valueOf(msgObj) : JSON.toJSONString(msgObj, SerializerFeature.WriteMapNullValue);
+        }
+        return msg;
     }
 }
