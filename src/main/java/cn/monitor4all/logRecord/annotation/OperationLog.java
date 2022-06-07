@@ -24,4 +24,8 @@ public @interface OperationLog {
 
     String tag() default "";
 
+    String ip() default "";
+
+    String device() default "";
+
 }

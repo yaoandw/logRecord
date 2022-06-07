@@ -109,10 +109,14 @@ public class SystemLogAspect {
                 String msgSpel = annotation.msg();
                 String tagSpel = annotation.tag();
                 String bizTypeSpel = annotation.bizType();
+                String ipSpel = annotation.ip();
+                String deviceSpel = annotation.device();
                 String bizId = bizIdSpel;
                 String msg = msgSpel;
                 String tag = tagSpel;
                 String bizType = bizTypeSpel;
+                String ip = ipSpel;
+                String device = deviceSpel;
                 try {
                     String[] params = discoverer.getParameterNames(method);
                     StandardEvaluationContext context = LogRecordContext.getContext();
@@ -131,6 +135,8 @@ public class SystemLogAspect {
 
                     tag = parseSpel(tagSpel, context);
                     bizType = parseSpel(bizTypeSpel, context);
+                    ip = parseSpel(ipSpel, context);
+                    device = parseSpel(deviceSpel, context);
 
                 } catch (Exception e) {
                     log.error("SystemLogAspect resolveExpress error", e);
@@ -141,6 +147,8 @@ public class SystemLogAspect {
                     logDTO.setOperateDate(new Date());
                     logDTO.setMsg(msg);
                     logDTO.setTag(tag);
+                    logDTO.setIp(ip);
+                    logDTO.setDevice(device);
                 }
             }
             return logDTOList;

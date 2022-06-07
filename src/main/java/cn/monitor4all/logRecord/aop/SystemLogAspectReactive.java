@@ -251,10 +251,14 @@ public class SystemLogAspectReactive {
                 String msgSpel = annotation.msg();
                 String tagSpel = annotation.tag();
                 String bizTypeSpel = annotation.bizType();
+                String ipSpel = annotation.ip();
+                String deviceSpel = annotation.device();
                 String bizId = bizIdSpel;
                 String msg = msgSpel;
                 String tag = tagSpel;
                 String bizType = bizTypeSpel;
+                String ip = ipSpel;
+                String device = deviceSpel;
                 try {
                     String[] params = discoverer.getParameterNames(method);
                     CustomFunctionRegistrar.register(context);
@@ -272,6 +276,8 @@ public class SystemLogAspectReactive {
 
                     tag = systemLogAspect.parseSpel(tagSpel, context);
                     bizType = systemLogAspect.parseSpel(bizTypeSpel, context);
+                    ip = systemLogAspect.parseSpel(ipSpel, context);
+                    device = systemLogAspect.parseSpel(deviceSpel, context);
 
                 } catch (Exception e) {
                     log.error("SystemLogAspect resolveExpress error", e);
@@ -282,6 +288,8 @@ public class SystemLogAspectReactive {
                     logDTO.setOperateDate(new Date());
                     logDTO.setMsg(msg);
                     logDTO.setTag(tag);
+                    logDTO.setIp(ip);
+                    logDTO.setDevice(device);
                 }
                 return Mono.just(logDTO);
             });
