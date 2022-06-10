@@ -23,7 +23,10 @@ import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StopWatch;
+import org.springframework.web.context.request.RequestContextHolder;
+import org.springframework.web.context.request.ServletRequestAttributes;
 
+import javax.servlet.http.HttpServletRequest;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Date;
@@ -109,15 +112,10 @@ public class SystemLogAspect {
                 String msgSpel = annotation.msg();
                 String tagSpel = annotation.tag();
                 String bizTypeSpel = annotation.bizType();
-                String ipSpel = annotation.ip();
-                String deviceSpel = annotation.device();
-//                log.error("deviceSpel:"+deviceSpel);
                 String bizId = bizIdSpel;
                 String msg = msgSpel;
                 String tag = tagSpel;
                 String bizType = bizTypeSpel;
-                String ip = ipSpel;
-                String device = deviceSpel;
                 try {
                     String[] params = discoverer.getParameterNames(method);
                     StandardEvaluationContext context = LogRecordContext.getContext();
@@ -136,8 +134,6 @@ public class SystemLogAspect {
 
                     tag = parseSpel(tagSpel, context);
                     bizType = parseSpel(bizTypeSpel, context);
-                    ip = parseSpel(ipSpel, context);
-                    device = parseSpel(deviceSpel, context);
 
                 } catch (Exception e) {
                     log.error("SystemLogAspect resolveExpress error", e);
@@ -148,8 +144,8 @@ public class SystemLogAspect {
                     logDTO.setOperateDate(new Date());
                     logDTO.setMsg(msg);
                     logDTO.setTag(tag);
-                    logDTO.setIp(ip);
-                    logDTO.setDevice(device);
+                    logDTO.setIp(getIp());
+                    logDTO.setDevice(getSystemInfoMd5());
                 }
             }
             return logDTOList;
@@ -186,5 +182,24 @@ public class SystemLogAspect {
             }
         }
         return msg;
+    }
+
+    public String getIp() {
+        ServletRequestAttributes requestAttributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        HttpServletRequest request = requestAttributes.getRequest();
+        if (request != null) {
+            String ip = request.getHeader("x-forwarded-for");
+            return org.springframework.util.StringUtils.hasLength(ip)?ip:"unknown";
+        }
+        return "";
+    }
+    public String getSystemInfoMd5() {
+        ServletRequestAttributes requestAttributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
+        HttpServletRequest request = requestAttributes.getRequest();
+        if (request != null) {
+            String md5 = request.getHeader("sys");
+            return org.springframework.util.StringUtils.hasLength(md5)?md5:"unknown";
+        }
+        return "";
     }
 }

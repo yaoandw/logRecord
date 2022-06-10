@@ -3,6 +3,7 @@ package cn.monitor4all.logRecord.aop;
 import cn.monitor4all.logRecord.annotation.OperationLog;
 import cn.monitor4all.logRecord.annotation.OperationLogReactive;
 import cn.monitor4all.logRecord.bean.LogDTO;
+import cn.monitor4all.logRecord.configuration.LogReactiveRequestContextHolder;
 import cn.monitor4all.logRecord.context.LogRecordContext;
 import cn.monitor4all.logRecord.context.LogRecordContextReactive;
 import cn.monitor4all.logRecord.function.CustomFunctionRegistrar;
@@ -11,7 +12,6 @@ import cn.monitor4all.logRecord.service.LogService;
 import com.alibaba.fastjson.JSON;
 import com.alibaba.fastjson.serializer.SerializerFeature;
 import lombok.extern.slf4j.Slf4j;
-import org.apache.commons.lang3.StringUtils;
 import org.aspectj.lang.JoinPoint;
 import org.aspectj.lang.ProceedingJoinPoint;
 import org.aspectj.lang.Signature;
@@ -24,8 +24,10 @@ import org.springframework.core.DefaultParameterNameDiscoverer;
 import org.springframework.expression.Expression;
 import org.springframework.expression.spel.standard.SpelExpressionParser;
 import org.springframework.expression.spel.support.StandardEvaluationContext;
+import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StopWatch;
+import org.springframework.util.StringUtils;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
@@ -182,120 +184,66 @@ public class SystemLogAspectReactive {
         return "reactor.core.publisher.Mono".equals(returnType.getName());
     }
 
-    public List<LogDTO> resolveExpress(JoinPoint joinPoint) {
-        try {
-            List<LogDTO> logDTOList = new ArrayList<>();
-            Object[] arguments = joinPoint.getArgs();
-            Method method = getMethod(joinPoint);
-            OperationLogReactive[] annotations = method.getAnnotationsByType(OperationLogReactive.class);
-            for (OperationLogReactive annotation : annotations) {
-                LogDTO logDTO = new LogDTO();
-                logDTOList.add(logDTO);
-                String bizIdSpel = annotation.bizId();
-                String msgSpel = annotation.msg();
-                String tagSpel = annotation.tag();
-                String bizTypeSpel = annotation.bizType();
-                String bizId = bizIdSpel;
-                String msg = msgSpel;
-                String tag = tagSpel;
-                String bizType = bizTypeSpel;
-                try {
-                    String[] params = discoverer.getParameterNames(method);
-                    StandardEvaluationContext context = new StandardEvaluationContext();
-                    CustomFunctionRegistrar.register(context);
-                    if (params != null) {
-                        for (int len = 0; len < params.length; len++) {
-                            context.setVariable(params[len], arguments[len]);
-                        }
-                    }
-
-                    // bizId 处理：直接传入字符串会抛出异常，写入默认传入的字符串
-                    bizId = systemLogAspect.parseSpel(bizIdSpel, context);
-
-                    // msg 处理：写入默认传入的字符串
-                    msg = systemLogAspect.parseSpel(msgSpel, context);
-
-                    tag = systemLogAspect.parseSpel(tagSpel, context);
-                    bizType = systemLogAspect.parseSpel(bizTypeSpel, context);
-
-                } catch (Exception e) {
-                    log.error("SystemLogAspect resolveExpress error", e);
-                } finally {
-                    logDTO.setLogId(UUID.randomUUID().toString());
-                    logDTO.setBizId(bizId);
-                    logDTO.setBizType(bizType);
-                    logDTO.setOperateDate(new Date());
-                    logDTO.setMsg(msg);
-                    logDTO.setTag(tag);
-                }
-            }
-            return logDTOList;
-
-        } catch (Exception e) {
-            log.error("SystemLogAspect resolveExpress error", e);
-            return new ArrayList<>();
-        }
-    }
-
     public Flux<LogDTO> resolveExpressReactive(JoinPoint joinPoint) {
         return LogRecordContextReactive.getSpelContext().flatMapMany(context -> {
-            List<LogDTO> logDTOList = new ArrayList<>();
-            Object[] arguments = joinPoint.getArgs();
-            Method method = getMethod(joinPoint);
-            OperationLogReactive[] annotations = method.getAnnotationsByType(OperationLogReactive.class);
-            return Flux.fromArray(annotations).flatMap(annotation -> {
+            return LogReactiveRequestContextHolder.getRequest().flatMapMany(request -> {
+                return resolveExpress(joinPoint, context, request);
+            }).switchIfEmpty(resolveExpress(joinPoint, context, null));
 
-                LogDTO logDTO = new LogDTO();
-                logDTOList.add(logDTO);
-                String bizIdSpel = annotation.bizId();
-                String msgSpel = annotation.msg();
-                String tagSpel = annotation.tag();
-                String bizTypeSpel = annotation.bizType();
-                String ipSpel = annotation.ip();
-                String deviceSpel = annotation.device();
-                String bizId = bizIdSpel;
-                String msg = msgSpel;
-                String tag = tagSpel;
-                String bizType = bizTypeSpel;
-                String ip = ipSpel;
-                String device = deviceSpel;
-                try {
-                    String[] params = discoverer.getParameterNames(method);
-                    CustomFunctionRegistrar.register(context);
-                    if (params != null) {
-                        for (int len = 0; len < params.length; len++) {
-                            context.setVariable(params[len], arguments[len]);
-                        }
-                    }
-
-                    // bizId 处理：直接传入字符串会抛出异常，写入默认传入的字符串
-                    bizId = systemLogAspect.parseSpel(bizIdSpel, context);
-
-                    // msg 处理：写入默认传入的字符串
-                    msg = systemLogAspect.parseSpel(msgSpel, context);
-
-                    tag = systemLogAspect.parseSpel(tagSpel, context);
-                    bizType = systemLogAspect.parseSpel(bizTypeSpel, context);
-                    ip = systemLogAspect.parseSpel(ipSpel, context);
-                    device = systemLogAspect.parseSpel(deviceSpel, context);
-
-                } catch (Exception e) {
-                    log.error("SystemLogAspect resolveExpress error", e);
-                } finally {
-                    logDTO.setLogId(UUID.randomUUID().toString());
-                    logDTO.setBizId(bizId);
-                    logDTO.setBizType(bizType);
-                    logDTO.setOperateDate(new Date());
-                    logDTO.setMsg(msg);
-                    logDTO.setTag(tag);
-                    logDTO.setIp(ip);
-                    logDTO.setDevice(device);
-                }
-                return Mono.just(logDTO);
-            });
         }).onErrorResume(e -> {
             log.error("SystemLogAspect resolveExpress error", e);
             return Flux.empty();
+        });
+    }
+
+    private Flux<LogDTO> resolveExpress(JoinPoint joinPoint, StandardEvaluationContext context, ServerHttpRequest request) {
+        List<LogDTO> logDTOList = new ArrayList<>();
+        Object[] arguments = joinPoint.getArgs();
+        Method method = getMethod(joinPoint);
+        OperationLogReactive[] annotations = method.getAnnotationsByType(OperationLogReactive.class);
+        return Flux.fromArray(annotations).flatMap(annotation -> {
+
+            LogDTO logDTO = new LogDTO();
+            logDTOList.add(logDTO);
+            String bizIdSpel = annotation.bizId();
+            String msgSpel = annotation.msg();
+            String tagSpel = annotation.tag();
+            String bizTypeSpel = annotation.bizType();
+            String bizId = bizIdSpel;
+            String msg = msgSpel;
+            String tag = tagSpel;
+            String bizType = bizTypeSpel;
+            try {
+                String[] params = discoverer.getParameterNames(method);
+                CustomFunctionRegistrar.register(context);
+                if (params != null) {
+                    for (int len = 0; len < params.length; len++) {
+                        context.setVariable(params[len], arguments[len]);
+                    }
+                }
+
+                // bizId 处理：直接传入字符串会抛出异常，写入默认传入的字符串
+                bizId = systemLogAspect.parseSpel(bizIdSpel, context);
+
+                // msg 处理：写入默认传入的字符串
+                msg = systemLogAspect.parseSpel(msgSpel, context);
+
+                tag = systemLogAspect.parseSpel(tagSpel, context);
+                bizType = systemLogAspect.parseSpel(bizTypeSpel, context);
+
+            } catch (Exception e) {
+                log.error("SystemLogAspect resolveExpress error", e);
+            } finally {
+                logDTO.setLogId(UUID.randomUUID().toString());
+                logDTO.setBizId(bizId);
+                logDTO.setBizType(bizType);
+                logDTO.setOperateDate(new Date());
+                logDTO.setMsg(msg);
+                logDTO.setTag(tag);
+                logDTO.setIp(getIp(request));
+                logDTO.setDevice(getSystemInfoMd5(request));
+            }
+            return Mono.just(logDTO);
         });
     }
 
@@ -310,5 +258,21 @@ public class SystemLogAspectReactive {
             log.error("SystemLogAspect getMethod error", e);
         }
         return method;
+    }
+
+    private String getIp(ServerHttpRequest request) {
+        if (request != null) {
+            String ip = request.getHeaders().getFirst("x-forwarded-for");
+            return org.springframework.util.StringUtils.hasLength(ip) ? ip : "unknown";
+        }
+        return "unknown";
+    }
+
+    private String getSystemInfoMd5(ServerHttpRequest request) {
+        if (request != null) {
+            String md5 = request.getHeaders().getFirst("sys");
+            return StringUtils.hasLength(md5)?md5:"unknown";
+        }
+        return "unknown";
     }
 }
