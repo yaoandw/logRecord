@@ -111,6 +111,7 @@ public class SystemLogAspect {
                 String bizTypeSpel = annotation.bizType();
                 String ipSpel = annotation.ip();
                 String deviceSpel = annotation.device();
+//                log.error("deviceSpel:"+deviceSpel);
                 String bizId = bizIdSpel;
                 String msg = msgSpel;
                 String tag = tagSpel;
@@ -176,9 +177,13 @@ public class SystemLogAspect {
     protected String parseSpel(String msgSpel, StandardEvaluationContext context) {
         String msg = msgSpel;
         if (StringUtils.isNotBlank(msgSpel)) {
-            Expression msgExpression = parser.parseExpression(msgSpel);
-            Object msgObj = msgExpression.getValue(context, Object.class);
-            msg = msgObj instanceof String ? String.valueOf(msgObj) : JSON.toJSONString(msgObj, SerializerFeature.WriteMapNullValue);
+            try {
+                Expression msgExpression = parser.parseExpression(msgSpel);
+                Object msgObj = msgExpression.getValue(context, Object.class);
+                msg = msgObj instanceof String ? String.valueOf(msgObj) : JSON.toJSONString(msgObj, SerializerFeature.WriteMapNullValue);
+            }catch (Exception e) {
+                log.error("parseExpression error", e);
+            }
         }
         return msg;
     }
