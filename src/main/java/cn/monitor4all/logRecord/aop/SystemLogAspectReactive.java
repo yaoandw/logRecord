@@ -33,10 +33,7 @@ import reactor.core.publisher.Mono;
 import reactor.core.scheduler.Schedulers;
 
 import java.lang.reflect.Method;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 @Aspect
 @Component
@@ -188,10 +185,17 @@ public class SystemLogAspectReactive {
         return LogRecordContextReactive.getSpelContext().flatMapMany(context -> {
             return LogReactiveRequestContextHolder.getRequest().flatMapMany(request -> {
                 return resolveExpress(joinPoint, context, request);
-            }).switchIfEmpty(resolveExpress(joinPoint, context, null));
+            }).switchIfEmpty(resolveExpress(joinPoint, context, null))
+                    .onErrorResume(e -> {
+                        log.error("LogReactiveRequestContextHolder.getRequest() error:" + e.getMessage());
+                        if (e instanceof NoSuchElementException) { //java.util.NoSuchElementException: Context is empty
+                            return resolveExpress(joinPoint, context, null);
+                        }
+                        return Flux.error(e);
+                    });
 
         }).onErrorResume(e -> {
-            log.error("SystemLogAspect resolveExpress error", e);
+            log.error("SystemLogAspect resolveExpressReactive error", e);
             return Flux.empty();
         });
     }
@@ -271,7 +275,7 @@ public class SystemLogAspectReactive {
     private String getSystemInfoMd5(ServerHttpRequest request) {
         if (request != null) {
             String md5 = request.getHeaders().getFirst("sys");
-            return StringUtils.hasLength(md5)?md5:"unknown";
+            return StringUtils.hasLength(md5) ? md5 : "unknown";
         }
         return "unknown";
     }
