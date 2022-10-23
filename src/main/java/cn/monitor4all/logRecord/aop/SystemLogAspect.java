@@ -186,10 +186,12 @@ public class SystemLogAspect {
 
     public String getIp() {
         ServletRequestAttributes requestAttributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-        HttpServletRequest request = requestAttributes.getRequest();
-        if (request != null) {
-            String ip = request.getHeader("x-forwarded-for");
-            return org.springframework.util.StringUtils.hasLength(ip)?ip:"unknown";
+        if (requestAttributes != null) {
+            HttpServletRequest request = requestAttributes.getRequest();
+            if (request != null) {
+                String ip = request.getHeader("x-forwarded-for");
+                return org.springframework.util.StringUtils.hasLength(ip)?ip:"unknown";
+            }
         }
         return "";
     }
