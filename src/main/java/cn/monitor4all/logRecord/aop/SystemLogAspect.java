@@ -197,10 +197,12 @@ public class SystemLogAspect {
     }
     public String getSystemInfoMd5() {
         ServletRequestAttributes requestAttributes = (ServletRequestAttributes) RequestContextHolder.getRequestAttributes();
-        HttpServletRequest request = requestAttributes.getRequest();
-        if (request != null) {
-            String md5 = request.getHeader("sys");
-            return org.springframework.util.StringUtils.hasLength(md5)?md5:"unknown";
+        if (requestAttributes != null) {
+            HttpServletRequest request = requestAttributes.getRequest();
+            if (request != null) {
+                String md5 = request.getHeader("sys");
+                return org.springframework.util.StringUtils.hasLength(md5)?md5:"unknown";
+            }
         }
         return "";
     }
