@@ -19,7 +19,7 @@ public class LogRecordContextReactive {
     private String bizId;
 
     public static Mono<StandardEvaluationContext> getSpelContext() {
-        return Mono.subscriberContext().map(context -> {
+        return Mono.deferContextual(context -> {
             StandardEvaluationContext spelContext = new StandardEvaluationContext();
             context.stream().forEach(objectObjectEntry -> {
                 spelContext.setVariable(objectObjectEntry.getKey().toString(),objectObjectEntry.getValue());
@@ -46,7 +46,7 @@ public class LogRecordContextReactive {
             } catch (IllegalAccessException e) {
                 e.printStackTrace();
             }
-            return spelContext;
+            return Mono.just(spelContext);
         });
     }
 

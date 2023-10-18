@@ -1,10 +1,8 @@
 package cn.monitor4all.logRecord.aop;
 
-import cn.monitor4all.logRecord.annotation.OperationLog;
 import cn.monitor4all.logRecord.annotation.OperationLogReactive;
 import cn.monitor4all.logRecord.bean.LogDTO;
 import cn.monitor4all.logRecord.configuration.LogReactiveRequestContextHolder;
-import cn.monitor4all.logRecord.context.LogRecordContext;
 import cn.monitor4all.logRecord.context.LogRecordContextReactive;
 import cn.monitor4all.logRecord.function.CustomFunctionRegistrar;
 import cn.monitor4all.logRecord.service.CustomLogListener;
@@ -30,7 +28,6 @@ import org.springframework.util.StopWatch;
 import org.springframework.util.StringUtils;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
-import reactor.core.scheduler.Schedulers;
 
 import java.lang.reflect.Method;
 import java.util.*;
@@ -213,31 +210,29 @@ public class SystemLogAspectReactive {
             String msgSpel = annotation.msg();
             String tagSpel = annotation.tag();
             String bizTypeSpel = annotation.bizType();
-            String bizId = bizIdSpel;
-            String msg = msgSpel;
-            String tag = tagSpel;
-            String bizType = bizTypeSpel;
-            try {
-                String[] params = discoverer.getParameterNames(method);
-                CustomFunctionRegistrar.register(context);
-                if (params != null) {
-                    for (int len = 0; len < params.length; len++) {
-                        context.setVariable(params[len], arguments[len]);
-                    }
+//            String bizId = bizIdSpel;
+//            String msg = msgSpel;
+//            String tag = tagSpel;
+//            String bizType = bizTypeSpel;
+
+            String[] params = discoverer.getParameterNames(method);
+            CustomFunctionRegistrar.register(context);
+            if (params != null) {
+                for (int len = 0; len < params.length; len++) {
+                    context.setVariable(params[len], arguments[len]);
                 }
+            }
 
-                // bizId 处理：直接传入字符串会抛出异常，写入默认传入的字符串
-                bizId = systemLogAspect.parseSpel(bizIdSpel, context);
+            Mono<String> bizIdMono = parseSpel(bizIdSpel, context);
+            Mono<String> msgMono = parseSpel(msgSpel, context);
+            Mono<String> tagMono = parseSpel(tagSpel, context);
+            Mono<String> bizTypeMono = parseSpel(bizTypeSpel, context);
 
-                // msg 处理：写入默认传入的字符串
-                msg = systemLogAspect.parseSpel(msgSpel, context);
-
-                tag = systemLogAspect.parseSpel(tagSpel, context);
-                bizType = systemLogAspect.parseSpel(bizTypeSpel, context);
-
-            } catch (Exception e) {
-                log.error("SystemLogAspect resolveExpress error", e);
-            } finally {
+            return Mono.zip(bizIdMono, msgMono, tagMono, bizTypeMono).map(tuple-> {
+                String bizId = tuple.getT1();
+                String msg = tuple.getT2();
+                String tag = tuple.getT3();
+                String bizType = tuple.getT4();
                 logDTO.setLogId(UUID.randomUUID().toString());
                 logDTO.setBizId(bizId);
                 logDTO.setBizType(bizType);
@@ -246,8 +241,8 @@ public class SystemLogAspectReactive {
                 logDTO.setTag(tag);
                 logDTO.setIp(getIp(request));
                 logDTO.setDevice(getSystemInfoMd5(request));
-            }
-            return Mono.just(logDTO);
+                return logDTO;
+            });
         });
     }
 
@@ -262,6 +257,27 @@ public class SystemLogAspectReactive {
             log.error("SystemLogAspect getMethod error", e);
         }
         return method;
+    }
+
+    protected Mono<String> parseSpel(String msgSpel, StandardEvaluationContext context) {
+        String msg = msgSpel;
+        if (StringUtils.hasLength(msgSpel)) {
+            try {
+                Expression msgExpression = parser.parseExpression(msgSpel);
+                Object msgObj = msgExpression.getValue(context, Object.class);
+                if (msgObj instanceof String)
+                    return Mono.just(String.valueOf(msgObj));
+                if (msgObj instanceof Mono) {//这里其实不会出现Mono类型,因为spel不支持reactive类型方法(测试后得出[会得到Monolift])
+                    return ((Mono<?>) msgObj).map(o -> {
+                        return o instanceof String ? String.valueOf(o) : JSON.toJSONString(o, SerializerFeature.WriteMapNullValue);
+                    });
+                }
+                return Mono.just(JSON.toJSONString(msgObj, SerializerFeature.WriteMapNullValue));
+            }catch (Exception e) {
+                log.error("parseExpression error", e);
+            }
+        }
+        return Mono.just(msg);
     }
 
     private String getIp(ServerHttpRequest request) {
